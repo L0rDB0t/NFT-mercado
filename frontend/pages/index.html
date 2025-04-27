@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Web3 Marketplace ✨</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.6.2/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@2.9.2/dist/umd/index.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #1e3a8a, #0f172a);
+      font-family: 'Inter', sans-serif;
+    }
+    .nft-card {
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .nft-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .btn-primary {
+      background: linear-gradient(90deg, #7c3aed, #9333ea);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(90deg, #9333ea, #7c3aed);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-8">
+
+  <h1 class="text-5xl font-bold text-white mb-10 text-center">🌟 Web3 NFT Marketplace 🌟</h1>
+
+  <div class="flex gap-6 mb-10">
+    <button onclick="connectMetamask()" class="btn-primary text-white font-semibold px-6 py-3 rounded-xl shadow hover:scale-105 transition">Conectar Metamask</button>
+    <button onclick="connectWalletConnect()" class="btn-primary text-white font-semibold px-6 py-3 rounded-xl shadow hover:scale-105 transition">Conectar WalletConnect</button>
+  </div>
+
+  <div id="market" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 max-w-7xl w-full"></div>
+
+  <script>
+    const CONTRACT_ADDRESS = "0x100140437e66c72d34D6C85f5818E6E55CfF4A25";
+    const CONTRACT_ABI = [
+      "function listings(uint256) view returns (uint256 price, address seller)",
+      "function buyToken(uint256 tokenId) payable",
+      "function ownerOf(uint256 tokenId) view returns (address)",
+      "function tokenURI(uint256 tokenId) view returns (string)",
+    ];
+
+    let provider;
+    let signer;
+    let contract;
+
+    async function connectMetamask() {
+      try {
+        if (!window.ethereum) {
+          alert("❗ Instala Metamask para continuar.");
+          return;
+        }
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+        alert("✅ ¡Conectado con Metamask!");
+        loadMarketplace();
+      } catch (err) {
+        console.error(err);
+        alert("❌ Error al conectar Metamask.");
+      }
+    }
+
+    async function connectWalletConnect() {
+      try {
+        const walletConnectProvider = new window.WalletConnectProvider.default({
+          projectId: "3815cacb1d646712ea48c837429462a2",
+          chains: [11155111], // Sepolia
+          showQrModal: true,
+        });
+
+        await walletConnectProvider.enable();
+        provider = new ethers.BrowserProvider(walletConnectProvider);
+        signer = await provider.getSigner();
+        contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+        alert("✅ ¡Conectado con WalletConnect!");
+        loadMarketplace();
+      } catch (err) {
+        console.error(err);
+        alert("❌ Error al conectar WalletConnect.");
+      }
+    }
+
+    async function loadMarketplace() {
+      const marketDiv = document.getElementById("market");
+      marketDiv.innerHTML = "";
+
+      for (let tokenId = 0; tokenId < 10; tokenId++) {
+        try {
+          const listing = await contract.listings(tokenId);
+          if (listing.price > 0n) {
+            const tokenUri = await contract.tokenURI(tokenId);
+            const priceInEth = ethers.formatEther(listing.price);
+
+            const nftCard = document.createElement("div");
+            nftCard.className = "nft-card bg-white rounded-2xl overflow-hidden shadow-md flex flex-col justify-between p-6";
+
+            nftCard.innerHTML = `
+              <div>
+                <h2 class="text-2xl font-bold text-purple-700 mb-2">NFT #${tokenId}</h2>
+                <p class="text-gray-700 mb-1"><strong>Precio:</strong> ${priceInEth} ETH</p>
+                <p class="text-gray-600 mb-1 text-sm break-words"><strong>Vendedor:</strong> ${listing.seller}</p>
+                <p class="text-gray-500 text-xs break-words"><strong>URI:</strong> ${tokenUri}</p>
+              </div>
+              <button onclick="buyNFT(${tokenId}, '${listing.price}')" class="btn-primary mt-4 w-full py-2 rounded-lg text-white font-semibold hover:scale-105 transition">Comprar</button>
+            `;
+            marketDiv.appendChild(nftCard);
+          }
+        } catch (err) {
+          console.log(`Token ${tokenId} no disponible: `, err.message);
+        }
+      }
+    }
+
+    async function buyNFT(tokenId, price) {
+      try {
+        const tx = await contract.buyToken(tokenId, { value: price });
+        await tx.wait();
+        alert("🎉 ¡Compra exitosa!");
+        window.location.reload();
+      } catch (err) {
+        console.error(err);
+        alert("❌ Error al comprar NFT.");
+      }
+    }
+  </script>
+
+</body>
+</html>
